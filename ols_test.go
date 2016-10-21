@@ -19,9 +19,7 @@ func TestOLS(t *testing.T) {
 		66.28, 68.10, 69.92, 72.19, 74.46,
 	})
 	model := NewModel(x, y)
-	res, err := model.Train()
-	if err != nil {
-		t.Fatalf("error in training: %s\n", err.Error())
-	}
+	res := model.Train()
+
 	t.Logf("%+v\n", res)
 }

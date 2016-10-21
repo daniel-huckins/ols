@@ -1,6 +1,7 @@
 package ols
 
 import (
+	"github.com/gonum/floats"
 	"github.com/gonum/matrix/mat64"
 )
 
@@ -9,6 +10,8 @@ type Model struct {
 	x            *mat64.Dense
 	y            *mat64.Vector // one dimentional
 	hasIntercept bool
+	cols         int
+	rows         int
 }
 
 // NewModel creates a new model with an intercept by default
@@ -32,7 +35,23 @@ func (m *Model) SetX(data mat64.Matrix) {
 	if data == nil {
 		return
 	}
-	m.x = mat64.DenseCopyOf(data)
+	rows, cols := data.Dims()
+	offset := 0
+	if m.hasIntercept {
+		offset = 1
+	}
+	m.cols = cols + offset
+	m.rows = rows
+	m.x = mat64.NewDense(rows, cols+offset, nil)
+	for c := 0; c < cols+offset; c++ {
+		if c == 0 && m.hasIntercept {
+			intercept := make([]float64, rows)
+			floats.AddConst(1.0, intercept)
+			m.x.SetCol(0, intercept)
+		} else {
+			m.x.SetCol(c, column(data, c-offset))
+		}
+	}
 }
 
 // SetY replaces the dependent model
@@ -54,21 +73,23 @@ func (m *Model) Dims() (int, int) {
 }
 
 // Train - process the data and return the result
-func (m *Model) Train() (res *mat64.Dense, err error) {
-	// nrows, ncols := m.x.Dims()
-	// inv := mat64.NewDense(nrows, ncols, nil)
-	var inv *mat64.Dense
-	xr, xc := m.x.Dims()
-	xxr, xxc := m.x.T().Dims()
-	log.Printf("x dims: (%d, %d)", xr, xc)
-	log.Printf("x' dims: (%d, %d)", xxr, xxc)
-	inv.Mul(m.x, m.x.T())
-	inv.Inverse(inv)
-	err = inv.Inverse(inv)
-	if err != nil {
-		return
-	}
-	res.Product(inv, m.x.T(), m.y)
+func (m *Model) Train() *mat64.Dense {
+	xt := m.x.T()
+	sq := mat64.NewDense(m.cols, m.cols, nil)
+	sq.Mul(xt, m.x)
+	sq.Inverse(sq)
+	res := mat64.NewDense(m.cols, 1, nil)
+	res.Product(sq, xt, m.y)
+	return res
+}
 
-	return
+func column(m mat64.Matrix, c int) []float64 {
+	rows, _ := m.Dims()
+	col := make([]float64, rows)
+	mat64.Col(col, c, m)
+	return col
+}
+
+func sum(data []float64) float64 {
+	return floats.Sum(data)
 }
